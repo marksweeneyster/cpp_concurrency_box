@@ -1,3 +1,40 @@
+# Ignore IDE specific files
+.vscode/
+.vs/
+.idea/
+out/
+
+cmake-build*/
+
+# CMake
+build*/
+.build*/
+connectivity_check
+
+# XCode
+.DS_Store
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.xcuserstate
+
+*~
+*.TMP
+*.a
+*.o
+*.so
+*.pyc
+*.class
+
 # Prerequisites
 *.d
 
