@@ -7,6 +7,8 @@ target_link_libraries(demo1 PUBLIC apricot)
 add_executable(demo2 demo2.cpp)
 target_link_libraries(demo2 PUBLIC apricot)
 
+add_executable(MultiRead MultiRead.cpp)
+target_link_libraries(MultiRead PUBLIC apricot)
 
 if (${SANITIZE_Q_APPS})
   # address
