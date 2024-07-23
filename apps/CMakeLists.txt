@@ -10,6 +10,11 @@ target_link_libraries(demo2 PUBLIC apricot)
 add_executable(MultiRead MultiRead.cpp)
 target_link_libraries(MultiRead PUBLIC apricot)
 
+add_executable(tdemo0 tdemo0.cpp)
+target_link_libraries(tdemo0 PUBLIC apricot)
+
+add_executable(thread_local_app thread_local_app.cpp)
+
 if (${SANITIZE_Q_APPS})
   # address
   add_executable(demo0_asan demo0.cpp)
