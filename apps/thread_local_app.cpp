@@ -3,18 +3,36 @@
 #include <string>
 #include <string_view>
 
+/**
+ * storage specifiers: https://en.cppreference.com/w/cpp/language/storage_duration
+ *
+ * "The thread_local keyword is only allowed for objects declared at namespace
+ *   scope, objects declared at block scope, and static data members.
+ *
+ *  It indicates that the object has thread storage duration.
+ *
+ *  If thread_local is the only storage class specifier applied to a
+ *   block scope variable, static is also implied."
+ *
+ *
+ * "thread storage duration: The storage for the object is allocated when the
+ *   thread begins and deallocated when the thread ends.
+ *
+ *  Each thread has its own instance of the object.
+ *
+ *  Only objects declared thread_local have this storage duration.
+ *
+ *  thread_local can appear together with static or extern to adjust linkage."
+ */
+
 class X {
-  inline static thread_local std::string s="X::";
+  inline static thread_local std::string s = "X::";
   mutable std::mutex mtx;
 
 public:
-  explicit X(std::string_view sv)  {
-    X::s += sv;
-  }
+  explicit X(std::string_view sv) { X::s += sv; }
 
-  void append(std::string_view sv) const {
-    X::s += sv;
-  }
+  void append(std::string_view sv) const { X::s += sv; }
 
   void print() const {
     std::lock_guard<std::mutex> lock(mtx);
@@ -27,14 +45,14 @@ int main() {
   X x("x::");
 
   // worker thread 1
-  auto lam1 = [&x](){
+  auto lam1 = [&x]() {
     x.append("ONE::");
     x.append("one\n");
     x.print();
   };
 
   // worker thread 2
-  auto lam2 = [&x](){
+  auto lam2 = [&x]() {
     x.append("TWO::");
     x.append("two::");
     x.append("2\n");

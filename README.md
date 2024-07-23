@@ -13,3 +13,5 @@ These exercise the queues in various ways
 1. **demo0** - Queue0 with `std::future`
 2. **demo1** - Queue1 with `std::future`
 3. **demo2** - Queue1 with `std::packaged_task`
+4. **tdemo** - Interruptible thread (_in progress_)
+5. **thread_local_app** - demo of `thread_local` storage
