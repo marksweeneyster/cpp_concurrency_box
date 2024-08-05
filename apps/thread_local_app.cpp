@@ -2,6 +2,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 /**
  * storage specifiers: https://en.cppreference.com/w/cpp/language/storage_duration

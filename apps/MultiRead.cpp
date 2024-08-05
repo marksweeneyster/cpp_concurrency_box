@@ -1,22 +1,23 @@
 #include "apricot/shared_mtx.hpp"
 #include <future>
 #include <iostream>
+#include <vector>
 
 int main(int argc, char* argv[]) {
   uint16_t num_tasks = 111;
 
   apricot::MultiRead object(42);
 
-  auto mid = num_tasks / 2;
+  size_t mid = num_tasks / 2;
 
   using read_t  = std::future<int>;
   using write_t = std::future<void>;
 
-  std::vector<read_t> readers(num_tasks - 1);
+  std::vector< read_t > readers(num_tasks - 1);
   write_t writer;
 
-  uint16_t jj = 0;
-  for (uint16_t ii = 0; ii < num_tasks; ++ii) {
+  size_t jj = 0;
+  for (size_t ii = 0; ii < num_tasks; ++ii) {
     if (ii == mid) {
       writer = std::async(&apricot::MultiRead::write, &object, 13);
     } else {
