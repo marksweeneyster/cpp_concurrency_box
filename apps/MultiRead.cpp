@@ -1,6 +1,7 @@
 #include "apricot/shared_mtx.hpp"
 #include <future>
 #include <iostream>
+#include <vector>
 
 int main(int argc, char* argv[]) {
   uint16_t num_tasks = 111;

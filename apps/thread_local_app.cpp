@@ -2,6 +2,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 /**
  * storage specifiers: https://en.cppreference.com/w/cpp/language/storage_duration
@@ -25,6 +26,10 @@
  *  thread_local can appear together with static or extern to adjust linkage."
  */
 
+namespace {
+  thread_local std::string ss = "foo ";
+}
+
 class X {
   inline static thread_local std::string s = "X::";
   mutable std::mutex mtx;
@@ -32,16 +37,19 @@ class X {
 public:
   explicit X(std::string_view sv) { X::s += sv; }
 
-  void append(std::string_view sv) const { X::s += sv; }
+  void append(std::string_view sv) const { X::s += sv; ss += sv; }
 
   void print() const {
+    // mutex is just to prevent stdout getting garbled from different threads
     std::lock_guard<std::mutex> lock(mtx);
-    std::cout << X::s << '\n';
+    std::cout << X::s << '\t' << ss << '\n';
   }
 };
 
 int main() {
   // main thread
+  ss = "goo ";
+
   X x("x::");
 
   // worker thread 1
