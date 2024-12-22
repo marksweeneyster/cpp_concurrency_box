@@ -2,6 +2,7 @@
 #define CONCURRENCY_BOX_EXERCISE_INCLUDE_APRICOT_QUEUE_HPP
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <iostream>
@@ -10,8 +11,11 @@
 #include <queue>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace apricot {
+
+  // TODO: make fine-grained queue move-able
 
   /*
    * Queue0 uses a single mutex and std::queue for the FIFO
@@ -19,17 +23,30 @@ namespace apricot {
   template<typename T>
   class Queue0 {
   public:
-
     void enqueue(T data) {
       std::lock_guard<std::mutex> lk(data_mutex);
-      // try to avoid copy ctor calls when T is a non-trivial type
       data_queue.push(std::move(data));
       data_cv.notify_one();
     }
 
+    void enqueue(std::vector<T>&& data_vec) {
+      std::lock_guard<std::mutex> lk(data_mutex);
+
+      for (auto& data : data_vec) {
+        data_queue.push(std::move(data));
+      }
+
+      data_cv.notify_one();
+    }
+
+    /*
+     * Thread safe pop. Users should a sentinel value for the input/output and
+     * check if that value has changed.
+     * @data : reference value for the popped data
+     */
     void dequeue(T& data) {
       std::unique_lock<std::mutex> lk(data_mutex);
-      data_cv.wait(lk, [this] { return !data_queue.empty(); });
+      data_cv.wait_for(lk, data_wait_ms, [this] { return !data_queue.empty(); });
       // try to avoid copy ctor calls when T is a non-trivial type
       data = std::move(data_queue.front());
       data_queue.pop();
@@ -40,16 +57,51 @@ namespace apricot {
       return data_queue.empty();
     }
 
-    Queue0()                         = default;
+    void clear() {
+      std::lock_guard<std::mutex> lk(data_mutex);
+
+      while (!data_queue.empty()) {
+        data_queue.pop();
+      }
+    }
+
+    /*
+     * Constructor for single mutex queue.
+     * @timeout_ms : the maximum time in milliseconds that dequeue will wait
+     */
+    explicit Queue0(int timeout_ms) : data_wait_ms(timeout_ms) {}
     Queue0(const Queue0&)            = delete;
     Queue0& operator=(const Queue0&) = delete;
 
+    Queue0(Queue0&& other) noexcept : data_wait_ms(other.data_wait_ms) {
+      std::lock_guard<std::mutex> lk(other.data_mutex);
+      data_queue = std::move(other.data_queue);
+    }
+
+    Queue0& operator=(Queue0&& other) noexcept {
+      if (this != &other) {
+        data_wait_ms = other.data_wait_ms;
+        std::scoped_lock lock(data_mutex, other.data_mutex);
+
+        if (data_queue.empty()) {
+          data_queue = std::move(other.data_queue);
+        } else {
+          while (!other.data_queue.empty()) {
+            //T tmp = std::move(other.data_queue.front());
+            data_queue.push(std::move(other.data_queue.front()));
+            other.data_queue.pop();
+          }
+        }
+      }
+      return *this;
+    }
     ~Queue0() = default;
 
   private:
     std::queue<T> data_queue;
     mutable std::mutex data_mutex;
     std::condition_variable data_cv;
+    std::chrono::milliseconds data_wait_ms;
   };
 
   /*
