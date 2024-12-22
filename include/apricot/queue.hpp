@@ -210,16 +210,10 @@ namespace apricot {
   template<typename T>
   class Queue2 {
   public:
-    bool try_pop(T& value) {
-      std::unique_ptr<Node> const old_head = try_pop_head(value);
-      return old_head != nullptr;
-    }
+    bool try_pop(T& value) { return try_pop_head(value); }
 
     //
-    bool wait_and_pop(T& value)
-    {
-      return wait_pop_head(value);
-    }
+    bool wait_and_pop(T& value) { return wait_pop_head(value); }
 
     void push(T data) {
       auto data_ptr       = std::make_unique<T>(std::move(data));
@@ -248,6 +242,47 @@ namespace apricot {
     Queue2& operator=(const Queue2&) = delete;
 
     ~Queue2() = default;
+
+    Queue2(Queue2&& other) noexcept : data_wait_ms(other.data_wait_ms) {
+      std::scoped_lock lock(other.head_mutex, other.tail_mutex);
+      head       = std::move(other.head);
+      tail       = other.tail;
+      other.head = std::make_unique<Node>();
+      other.tail = other.head.get();
+    }
+
+    Queue2& operator=(Queue2&& other) noexcept {
+      if (this != &other) {
+        data_wait_ms = other.data_wait_ms;
+        std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex,
+                              other.tail_mutex);
+
+        bool other_empty = other.head.get() == other.tail;
+        bool this_empty  = head.get() == tail;
+
+        if (!other_empty) {
+          if (this_empty) {
+            head = std::move(other.head);
+            tail = other.tail;
+          } else {
+            while (other.head.get() != other.tail) {
+              auto data_ptr = std::make_unique<T>(std::move(*other.head->data));
+              other.pop_head();
+
+              auto node_ptr       = std::make_unique<Node>();
+              const auto new_tail = node_ptr.get();
+
+              tail->data = std::move(data_ptr);
+              tail->next = std::move(node_ptr);
+              tail       = new_tail;
+            }
+          }
+          other.head = std::make_unique<Node>();
+          other.tail = other.head.get();
+        }
+      }
+      return *this;
+    }
 
   private:
     using DataPtr = std::unique_ptr<T>;
@@ -278,20 +313,25 @@ namespace apricot {
       head                           = std::move(old_head->next);
     }
 
-    std::unique_lock<std::mutex> wait_for_data(bool& head_is_tail) {
+    /*
+     * @is_empty : output parameter, false if queue is not empty
+     * returns (moves) the lock on the head_mutex
+     */
+    std::unique_lock<std::mutex> wait_for_data(bool& is_empty) {
       std::unique_lock<std::mutex> head_lock(head_mutex);
       data_cond.wait_for(head_lock, data_wait_ms, [&] {
-        head_is_tail = head.get() == get_tail();
-        return !head_is_tail;
+        is_empty = head.get() == get_tail();
+        return !is_empty;
       });
 
       return std::move(head_lock);
     }
 
+    // Returns true if value has been updated
     bool wait_pop_head(T& value) {
-      bool head_is_tail = true; // empty queue
-      std::unique_lock<std::mutex> head_lock(wait_for_data(head_is_tail));
-      if (!head_is_tail) {
+      bool is_empty = true;// empty queue
+      std::unique_lock<std::mutex> head_lock(wait_for_data(is_empty));
+      if (!is_empty) {
         value = std::move(*head->data);
         pop_head();
         return true;
@@ -299,13 +339,15 @@ namespace apricot {
       return false;
     }
 
-    std::unique_ptr<Node> try_pop_head(T& value) {
+    // Returns true if value has been updated
+    bool try_pop_head(T& value) {
       std::lock_guard<std::mutex> head_lock(head_mutex);
       if (head.get() == get_tail()) {
-        return {};
+        return false;
       }
       value = std::move(*head->data);
-      return pop_head();
+      pop_head();
+      return true;
     }
   };
 
