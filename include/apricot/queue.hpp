@@ -32,7 +32,7 @@ namespace apricot {
     void enqueue(std::vector<T>&& data_vec) {
       std::lock_guard<std::mutex> lk(data_mutex);
 
-      for (auto& data : data_vec) {
+      for (auto& data: data_vec) {
         data_queue.push(std::move(data));
       }
 
@@ -44,12 +44,16 @@ namespace apricot {
      * check if that value has changed.
      * @data : reference value for the popped data
      */
-    void dequeue(T& data) {
+    bool dequeue(T& data) {
       std::unique_lock<std::mutex> lk(data_mutex);
-      data_cv.wait_for(lk, data_wait_ms, [this] { return !data_queue.empty(); });
-      // try to avoid copy ctor calls when T is a non-trivial type
-      data = std::move(data_queue.front());
-      data_queue.pop();
+      data_cv.wait_for(lk, data_wait_ms,
+                       [this] { return !data_queue.empty(); });
+      if (!data_queue.empty()) {
+        data = std::move(data_queue.front());
+        data_queue.pop();
+        return true;
+      }
+      return false;
     }
 
     bool empty() const {
@@ -202,6 +206,109 @@ namespace apricot {
       return old_head;
     }
   };
+
+  template<typename T>
+  class Queue2 {
+  public:
+    bool try_pop(T& value) {
+      std::unique_ptr<Node> const old_head = try_pop_head(value);
+      return old_head != nullptr;
+    }
+
+    //
+    bool wait_and_pop(T& value)
+    {
+      return wait_pop_head(value);
+    }
+
+    void push(T data) {
+      auto data_ptr       = std::make_unique<T>(std::move(data));
+      auto node_ptr       = std::make_unique<Node>();
+      const auto new_tail = node_ptr.get();
+      {
+        std::lock_guard<std::mutex> tail_lock(tail_mutex);
+        tail->data = std::move(data_ptr);
+        tail->next = std::move(node_ptr);
+        tail       = new_tail;
+      }
+      data_cond.notify_one();
+    }
+
+    bool empty() const {
+      std::lock_guard<std::mutex> head_lock(head_mutex);
+      return head.get() == get_tail();
+    }
+
+    // Adding a dummy node partially simplifies the mutex management.
+    // The enqueue only needs to lock the tail mutex.
+    explicit Queue2(int timeout_ms)
+        : head(new Node), tail(head.get()), data_wait_ms(timeout_ms) {}
+
+    Queue2(const Queue2&)            = delete;
+    Queue2& operator=(const Queue2&) = delete;
+
+    ~Queue2() = default;
+
+  private:
+    using DataPtr = std::unique_ptr<T>;
+    struct Node {
+      DataPtr data;
+      std::unique_ptr<Node> next;
+
+      Node() : data(nullptr), next(nullptr) {}
+    };
+    using NodePtr = std::unique_ptr<Node>;
+
+    NodePtr head;
+    Node* tail;
+
+    mutable std::mutex head_mutex;
+    mutable std::mutex tail_mutex;
+
+    std::condition_variable data_cond;
+    std::chrono::milliseconds data_wait_ms;
+
+    Node* get_tail() const {
+      std::lock_guard<std::mutex> tail_lock(tail_mutex);
+      return tail;
+    }
+
+    void pop_head() {
+      std::unique_ptr<Node> old_head = std::move(head);
+      head                           = std::move(old_head->next);
+    }
+
+    std::unique_lock<std::mutex> wait_for_data(bool& head_is_tail) {
+      std::unique_lock<std::mutex> head_lock(head_mutex);
+      data_cond.wait_for(head_lock, data_wait_ms, [&] {
+        head_is_tail = head.get() == get_tail();
+        return !head_is_tail;
+      });
+
+      return std::move(head_lock);
+    }
+
+    bool wait_pop_head(T& value) {
+      bool head_is_tail = true; // empty queue
+      std::unique_lock<std::mutex> head_lock(wait_for_data(head_is_tail));
+      if (!head_is_tail) {
+        value = std::move(*head->data);
+        pop_head();
+        return true;
+      }
+      return false;
+    }
+
+    std::unique_ptr<Node> try_pop_head(T& value) {
+      std::lock_guard<std::mutex> head_lock(head_mutex);
+      if (head.get() == get_tail()) {
+        return {};
+      }
+      value = std::move(*head->data);
+      return pop_head();
+    }
+  };
+
 
 }// namespace apricot
 

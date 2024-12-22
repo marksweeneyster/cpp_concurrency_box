@@ -120,10 +120,8 @@ TEST(Queue0, thread) {
 
     for (int ii=1; ii<=max_val; ++ii) {
       nc.data = 0;
-      do {
-        queue.dequeue(nc);
-        EXPECT_EQ(nc.data, ii);
-      } while (nc.data == 0);
+      while (!queue.dequeue(nc)) {}
+      EXPECT_EQ(nc.data, ii);
     }
     return;
   });
@@ -229,4 +227,29 @@ TEST(Queue1, Abort) {
 
   consumer.join();
   ASSERT_TRUE(d_queue.empty());
+}
+
+TEST(Queue2, NoCopy) {
+  apricot::Queue2<NoCopy> nc_queue(100);
+
+  nc_queue.push(NoCopy(1));
+  nc_queue.push(NoCopy(2));
+  nc_queue.push(NoCopy(3));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+
+  EXPECT_TRUE(nc_queue.wait_and_pop(nc1));
+  EXPECT_TRUE(nc_queue.wait_and_pop(nc2));
+  EXPECT_TRUE(nc_queue.wait_and_pop(nc3));
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+
+  EXPECT_TRUE(nc_queue.empty());
+  nc1.data = 42;
+  EXPECT_FALSE(nc_queue.wait_and_pop(nc1));
+  EXPECT_EQ(nc1.data, 42);
 }
