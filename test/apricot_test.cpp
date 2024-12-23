@@ -279,6 +279,33 @@ TEST(Queue2, TryPop) {
   EXPECT_EQ(nc1.data, 42);
 }
 
+TEST(Queue2, Vector) {
+  std::vector<NoCopy> vec;
+  vec.emplace_back(1);
+  vec.emplace_back(2);
+  vec.emplace_back(3);
+  vec.emplace_back(4);
+
+  apricot::Queue2<NoCopy> queue(100);
+
+  queue.push(std::move(vec));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+  NoCopy nc4(0);
+
+  queue.try_pop(nc1);
+  queue.try_pop(nc2);
+  queue.try_pop(nc3);
+  queue.try_pop(nc4);
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+  EXPECT_EQ(nc4.data, 4);
+}
+
 TEST(Queue2, thread) {
   apricot::Queue2<NoCopy> queue(1000);
   int max_val = 100;

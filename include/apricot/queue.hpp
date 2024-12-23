@@ -15,8 +15,6 @@
 
 namespace apricot {
 
-  // TODO: make fine-grained queue move-able
-
   /*
    * Queue0 uses a single mutex and std::queue for the FIFO
    */
@@ -210,10 +208,26 @@ namespace apricot {
   template<typename T>
   class Queue2 {
   public:
+    /*
+     * This will return as soon as the head_mutex is free.
+     * If the queue is non-empty then the value will be updated and the queue is
+     * popped. Otherwise, the value is not modified.
+     *
+     * @value : output parameter
+     * @return : true if the value was updated from the queue.
+     */
     bool try_pop(T& value) { return try_pop_head(value); }
 
-    //
+    /*
+     * This will wait until the queue is non-empty or until the wait-for time 
+     * has elapsed on the condition_variable.
+     * If it is a timeout then the value is not modified.
+     *
+     * @value : output parameter
+     * @return : true if the value was updated from the queue.
+     */
     bool wait_and_pop(T& value) { return wait_pop_head(value); }
+
 
     void push(T data) {
       auto data_ptr       = std::make_unique<T>(std::move(data));
@@ -228,13 +242,31 @@ namespace apricot {
       data_cond.notify_one();
     }
 
+    /*
+     * Push a vector of values, order will be preserved in the queue.
+     *
+     * @data_vec : input
+     */
+    void push(std::vector<T>&& data_vec) {
+      {
+        std::lock_guard<std::mutex> tail_lock(tail_mutex);
+        for (auto& data: data_vec) {
+          auto data_ptr       = std::make_unique<T>(std::move(data));
+          auto node_ptr       = std::make_unique<Node>();
+          const auto new_tail = node_ptr.get();
+          tail->data = std::move(data_ptr);
+          tail->next = std::move(node_ptr);
+          tail       = new_tail;
+        }
+      }
+      data_cond.notify_one();
+    }
+
     bool empty() const {
       std::lock_guard<std::mutex> head_lock(head_mutex);
       return head.get() == get_tail();
     }
 
-    // Adding a dummy node partially simplifies the mutex management.
-    // The enqueue only needs to lock the tail mutex.
     explicit Queue2(int timeout_ms)
         : head(new Node), tail(head.get()), data_wait_ms(timeout_ms) {}
 
