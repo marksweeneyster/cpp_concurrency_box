@@ -115,10 +115,10 @@ TEST(Queue0, thread) {
   apricot::Queue0<NoCopy> queue(1000);
   int max_val = 100;
 
-  std::thread listener([&queue, max_val](){
+  std::thread listener([&queue, max_val]() {
     NoCopy nc(0);
 
-    for (int ii=1; ii<=max_val; ++ii) {
+    for (int ii = 1; ii <= max_val; ++ii) {
       nc.data = 0;
       while (!queue.dequeue(nc)) {}
       EXPECT_EQ(nc.data, ii);
@@ -127,7 +127,7 @@ TEST(Queue0, thread) {
   });
   listener.detach();
 
-  for (int ii=1; ii<=max_val; ++ii) {
+  for (int ii = 1; ii <= max_val; ++ii) {
     queue.enqueue(NoCopy(ii));
   }
 
@@ -307,10 +307,10 @@ TEST(Queue2, thread) {
   apricot::Queue2<NoCopy> queue(1000);
   int max_val = 100;
 
-  std::thread listener([&queue, max_val](){
+  std::thread listener([&queue, max_val]() {
     NoCopy nc(0);
 
-    for (int ii=1; ii<=max_val; ++ii) {
+    for (int ii = 1; ii <= max_val; ++ii) {
       nc.data = 0;
       while (!queue.wait_and_pop(nc)) {}
       EXPECT_EQ(nc.data, ii);
@@ -319,7 +319,7 @@ TEST(Queue2, thread) {
   });
   listener.detach();
 
-  for (int ii=1; ii<=max_val; ++ii) {
+  for (int ii = 1; ii <= max_val; ++ii) {
     queue.push(NoCopy(ii));
   }
 
@@ -464,10 +464,10 @@ TEST(Queue3, thread) {
   apricot::Queue3<NoCopy> queue(1000);
   int max_val = 100;
 
-  std::thread listener([&queue, max_val](){
+  std::thread listener([&queue, max_val]() {
     NoCopy nc(0);
 
-    for (int ii=1; ii<=max_val; ++ii) {
+    for (int ii = 1; ii <= max_val; ++ii) {
       nc.data = 0;
       while (!queue.wait_and_pop(nc)) {}
       EXPECT_EQ(nc.data, ii);
@@ -476,7 +476,7 @@ TEST(Queue3, thread) {
   });
   listener.detach();
 
-  for (int ii=1; ii<=max_val; ++ii) {
+  for (int ii = 1; ii <= max_val; ++ii) {
     queue.push(NoCopy(ii));
   }
 
