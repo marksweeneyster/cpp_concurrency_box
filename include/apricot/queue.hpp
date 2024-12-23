@@ -4,8 +4,6 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <functional>
-#include <iostream>
 #include <mutex>
 #include <optional>
 #include <queue>
