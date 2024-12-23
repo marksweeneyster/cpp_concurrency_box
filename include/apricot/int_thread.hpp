@@ -62,7 +62,7 @@ namespace apricot {
         try {
           fn();
         } catch (thread_interrupted& e) {
-          std::cerr << std::this_thread::get_id() << " interrupted\n";
+          std::cerr << std::this_thread::get_id() << " interrupted\n" << e.what() << '\n';
         }
       });
 
