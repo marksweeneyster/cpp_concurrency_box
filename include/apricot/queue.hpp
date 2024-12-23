@@ -25,7 +25,7 @@ namespace apricot {
       data_cv.notify_one();
     }
 
-    void enqueue(std::vector<T>&& data_vec) {
+    void enqueue(std::vector<T> data_vec) {
       std::lock_guard<std::mutex> lk(data_mutex);
 
       for (auto& data: data_vec) {
@@ -245,7 +245,7 @@ namespace apricot {
      *
      * @data_vec : input
      */
-    void push(std::vector<T>&& data_vec) {
+    void push(std::vector<T> data_vec) {
       {
         std::lock_guard<std::mutex> tail_lock(tail_mutex);
         for (auto& data: data_vec) {
