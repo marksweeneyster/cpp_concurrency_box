@@ -382,3 +382,160 @@ TEST(Queue2, Move) {
   EXPECT_EQ(nc2.data, 8);
   EXPECT_EQ(nc3.data, 9);
 }
+
+TEST(Queue3, WaitAndPop) {
+  apricot::Queue3<NoCopy> nc_queue(100);
+
+  nc_queue.push(NoCopy(1));
+  nc_queue.push(NoCopy(2));
+  nc_queue.push(NoCopy(3));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+
+  EXPECT_TRUE(nc_queue.wait_and_pop(nc1));
+  EXPECT_TRUE(nc_queue.wait_and_pop(nc2));
+  EXPECT_TRUE(nc_queue.wait_and_pop(nc3));
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+
+  EXPECT_TRUE(nc_queue.empty());
+  nc1.data = 42;
+  EXPECT_FALSE(nc_queue.wait_and_pop(nc1));
+  EXPECT_EQ(nc1.data, 42);
+}
+
+TEST(Queue3, TryPop) {
+  apricot::Queue3<NoCopy> nc_queue(0);
+
+  nc_queue.push(NoCopy(1));
+  nc_queue.push(NoCopy(2));
+  nc_queue.push(NoCopy(3));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+
+  EXPECT_TRUE(nc_queue.try_pop(nc1));
+  EXPECT_TRUE(nc_queue.try_pop(nc2));
+  EXPECT_TRUE(nc_queue.try_pop(nc3));
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+
+  EXPECT_TRUE(nc_queue.empty());
+  nc1.data = 42;
+  EXPECT_FALSE(nc_queue.try_pop(nc1));
+  EXPECT_EQ(nc1.data, 42);
+}
+
+TEST(Queue3, Vector) {
+  std::vector<NoCopy> vec;
+  vec.emplace_back(1);
+  vec.emplace_back(2);
+  vec.emplace_back(3);
+  vec.emplace_back(4);
+
+  apricot::Queue3<NoCopy> queue(100);
+
+  queue.push(std::move(vec));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+  NoCopy nc4(0);
+
+  queue.try_pop(nc1);
+  queue.try_pop(nc2);
+  queue.try_pop(nc3);
+  queue.try_pop(nc4);
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+  EXPECT_EQ(nc4.data, 4);
+}
+
+TEST(Queue3, thread) {
+  apricot::Queue3<NoCopy> queue(1000);
+  int max_val = 100;
+
+  std::thread listener([&queue, max_val](){
+    NoCopy nc(0);
+
+    for (int ii=1; ii<=max_val; ++ii) {
+      nc.data = 0;
+      while (!queue.wait_and_pop(nc)) {}
+      EXPECT_EQ(nc.data, ii);
+    }
+    return;
+  });
+  listener.detach();
+
+  for (int ii=1; ii<=max_val; ++ii) {
+    queue.push(NoCopy(ii));
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  EXPECT_TRUE(queue.empty());
+}
+
+TEST(Queue3, Move) {
+  apricot::Queue3<NoCopy> queue0(100);
+  apricot::Queue3<NoCopy> queue1(100);
+
+  queue0.push(NoCopy(1));
+  queue0.push(NoCopy(2));
+  queue0.push(NoCopy(3));
+
+  queue1.push(NoCopy(4));
+  queue1.push(NoCopy(5));
+  queue1.push(NoCopy(6));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+  NoCopy nc4(0);
+  NoCopy nc5(0);
+  NoCopy nc6(0);
+
+  queue0 = std::move(queue1);
+
+  EXPECT_TRUE(queue1.empty());
+
+  queue0.try_pop(nc1);
+  queue0.try_pop(nc2);
+  queue0.try_pop(nc3);
+  queue0.try_pop(nc4);
+  queue0.try_pop(nc5);
+  queue0.try_pop(nc6);
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+  EXPECT_EQ(nc4.data, 4);
+  EXPECT_EQ(nc5.data, 5);
+  EXPECT_EQ(nc6.data, 6);
+
+  queue0.push(NoCopy(7));
+  queue0.push(NoCopy(8));
+  queue0.push(NoCopy(9));
+
+  apricot::Queue3<NoCopy> queue2(std::move(queue0));
+
+  EXPECT_TRUE(queue0.empty());
+  EXPECT_FALSE(queue2.empty());
+
+  queue2.try_pop(nc1);
+  queue2.try_pop(nc2);
+  queue2.try_pop(nc3);
+
+  EXPECT_EQ(nc1.data, 7);
+  EXPECT_EQ(nc2.data, 8);
+  EXPECT_EQ(nc3.data, 9);
+}
