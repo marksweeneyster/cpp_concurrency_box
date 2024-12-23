@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
   // Queue of tasks that return integers
   using FT_Queue = apricot::Queue0<std::future<int>>;
 
-  FT_Queue ft_queue;
+  FT_Queue ft_queue(1000);
 
   std::vector<int> squares(num_tasks, -7);
 

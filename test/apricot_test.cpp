@@ -202,9 +202,6 @@ TEST(Queue1, NoCopy) {
   auto nc_opt2 = nc_queue.dequeue();
   auto nc_opt3 = nc_queue.dequeue();
 
-  if (nc_opt1) {
-    std::cout << "true\n";
-  }
   ASSERT_TRUE(nc_opt1);
   ASSERT_TRUE(nc_opt2.has_value());
   ASSERT_TRUE(nc_opt3.has_value());
