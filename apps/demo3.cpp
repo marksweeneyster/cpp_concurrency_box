@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Queue of tasks that return integers
-  using FT_Queue = apricot::Queue2<std::future<int>>;
+  using FT_Queue = apricot::Queue3<std::future<int>>;
 
   FT_Queue ft_queue(1000);
 

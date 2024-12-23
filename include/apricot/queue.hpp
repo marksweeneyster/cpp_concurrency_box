@@ -414,13 +414,14 @@ namespace apricot {
      * @return : true if the value was updated from the queue.
      */
     bool wait_and_pop(T& value) {
-      bool is_empty = true;// empty queue
+      bool is_empty = true; // empty queue
 
-      std::unique_lock<std::mutex> head_lock(head_mutex);
-      data_cond.wait_for(head_lock, data_wait_ms, [&] {
-        is_empty = head.get() == get_tail();
-        return !is_empty;
-      });
+      // Using the helper function "wait_for_data" thread-sanitizer (plus asan and usan) give a clean bill of health
+
+      // If I move the body of "wait_for_data" here then thread-sanitizer complains (warns) about: 
+      // 1. double lock of a mutex (.build/apps/demo3_tsan+0x9e80) in __gthread_mutex_lock(pthread_mutex_t*)a
+      // 2. data race (.build/apps/demo3_tsan+0x117f5) in std::__uniq_ptr_impl<apricot::Queue3<std::future<int> >::Node, std::default_delete<apricot::Queue3<std::future<int> >::Node> >::_M_ptr() const 
+      std::unique_lock<std::mutex> head_lock(std::move(wait_for_data(is_empty)));
 
       if (!is_empty) {
         value = std::move(*head->data);
@@ -545,6 +546,16 @@ namespace apricot {
     void pop_head() {
       std::unique_ptr<Node> old_head = std::move(head);
       head                           = std::move(old_head->next);
+    }
+    
+    std::unique_lock<std::mutex> wait_for_data(bool& is_empty) {
+      std::unique_lock<std::mutex> head_lock(head_mutex);
+      data_cond.wait_for(head_lock, data_wait_ms, [&] {
+        is_empty = head.get() == get_tail();
+        return !is_empty;
+      });
+
+      return head_lock;
     }
   };
 
