@@ -11,6 +11,8 @@ build*/
 .build*/
 connectivity_check
 
+compile_commands.json
+
 # XCode
 .DS_Store
 *.pbxuser
