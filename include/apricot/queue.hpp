@@ -354,7 +354,9 @@ namespace apricot {
         return !is_empty;
       });
 
-      return std::move(head_lock);
+      // gcc warns of bypassing copy-elision
+      // return std::move(head_lock);
+      return head_lock;
     }
 
     // Returns true if value has been updated
