@@ -716,5 +716,253 @@ private:
   mutable std::mutex data_mutex;
   std::condition_variable data_cv;
 };
+
+
+template <typename T>
+class ts_queue2_t
+{
+public:
+  /*
+   * This will return as soon as the head_mutex is free.
+   * If the queue is non-empty then the value will be updated and the queue is
+   * popped. Otherwise, the value is not modified.
+   *
+   * @value : output parameter
+   * @return : true if the value was updated from the queue.
+   */
+  bool try_pop(T& value)
+  {
+    std::lock_guard<std::mutex> head_lock(head_mutex);
+    if (head.get() == get_tail())
+    {
+      return false;
+    }
+    value = std::move(*head->data);
+    pop_head();
+    return true;
+  }
+
+  /*
+   * This will wait until the queue is non-empty
+   *
+   * @value : output parameter
+   * @return : true if the value was updated from the queue.
+   */
+  bool wait_pop(T& value)
+  {
+    bool is_empty = true;  // empty queue
+
+    // Using the helper function "wait_for_data" thread-sanitizer (plus asan and usan) give a clean bill of health
+
+    // If I move the body of "wait_for_data" here then thread-sanitizer complains (warns) about:
+    // 1. double lock of a mutex (.build/apps/demo3_tsan+0x9e80) in __gthread_mutex_lock(pthread_mutex_t*)a
+    // 2. data race (.build/apps/demo3_tsan+0x117f5) in std::__uniq_ptr_impl<apricot::ts_queue2_t<std::future<int>
+    // >::Node, std::default_delete<apricot::ts_queue2_t<std::future<int> >::Node> >::_M_ptr() const
+    std::unique_lock<std::mutex> head_lock(wait_data(is_empty));
+
+    if (!is_empty)
+    {
+      value = std::move(*head->data);
+      pop_head();
+      return true;
+    }
+
+    return false;
+  }
+
+  bool wait_for_pop(T& value, std::chrono::milliseconds wait_time)
+  {
+    bool is_empty = true;  // empty queue
+    std::unique_lock<std::mutex> head_lock(wait_for_data(is_empty, wait_time));
+
+    if (!is_empty)
+    {
+      value = std::move(*head->data);
+      pop_head();
+      return true;
+    }
+
+    return false;
+  }
+
+  void push(T data)
+  {
+    auto data_ptr = std::make_unique<T>(std::move(data));
+    auto node_ptr = std::make_unique<Node>();
+    const auto new_tail = node_ptr.get();
+    {
+      std::lock_guard<std::mutex> tail_lock(tail_mutex);
+      tail->data = std::move(data_ptr);
+      tail->next = std::move(node_ptr);
+      tail = new_tail;
+    }
+    data_cond.notify_one();
+  }
+
+  /*
+   * Push a vector of values, order will be preserved in the queue.
+   *
+   * @data_vec : input
+   */
+  void push(std::vector<T> data_vec)
+  {
+    {
+      std::lock_guard<std::mutex> tail_lock(tail_mutex);
+      for (auto& data : data_vec)
+      {
+        auto data_ptr = std::make_unique<T>(std::move(data));
+        auto node_ptr = std::make_unique<Node>();
+        const auto new_tail = node_ptr.get();
+        tail->data = std::move(data_ptr);
+        tail->next = std::move(node_ptr);
+        tail = new_tail;
+      }
+    }
+    data_cond.notify_one();
+  }
+
+  bool empty() const
+  {
+    std::lock_guard<std::mutex> head_lock(head_mutex);
+    return head.get() == get_tail();
+  }
+
+  void clear()
+  {
+    std::scoped_lock lock(head_mutex, tail_mutex);
+    while (head.get() != tail)
+    {
+      pop_head();
+    }
+  }
+
+  ts_queue2_t() : head(new Node), tail(head.get()) {}
+
+  ts_queue2_t(const ts_queue2_t&) = delete;
+  ts_queue2_t& operator=(const ts_queue2_t&) = delete;
+
+  ~ts_queue2_t() = default;
+
+  ts_queue2_t(ts_queue2_t&& other) noexcept
+  {
+    std::scoped_lock lock(other.head_mutex, other.tail_mutex);
+    head = std::move(other.head);
+    tail = other.tail;
+    other.head = std::make_unique<Node>();
+    other.tail = other.head.get();
+  }
+
+  ts_queue2_t& operator=(ts_queue2_t&& other) noexcept
+  {
+    if (this != &other)
+    {
+      std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex, other.tail_mutex);
+      while (head.get() != tail)
+      {
+        pop_head();
+      }
+      head = std::move(other.head);
+      tail = other.tail;
+      other.head = std::make_unique<Node>();
+      other.tail = other.head.get();
+    }
+    return *this;
+  }
+
+  ts_queue2_t& operator+=(ts_queue2_t&& other) noexcept
+  {
+    if (this != &other)
+    {
+      std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex, other.tail_mutex);
+
+      bool other_empty = other.head.get() == other.tail;
+      bool this_empty = head.get() == tail;
+
+      if (!other_empty)
+      {
+        if (this_empty)
+        {
+          head = std::move(other.head);
+          tail = other.tail;
+        }
+        else
+        {
+          while (other.head.get() != other.tail)
+          {
+            auto data_ptr = std::make_unique<T>(std::move(*other.head->data));
+            other.pop_head();
+
+            auto node_ptr = std::make_unique<Node>();
+            const auto new_tail = node_ptr.get();
+
+            tail->data = std::move(data_ptr);
+            tail->next = std::move(node_ptr);
+            tail = new_tail;
+          }
+        }
+        other.head = std::make_unique<Node>();
+        other.tail = other.head.get();
+      }
+    }
+    return *this;
+  }
+
+private:
+  using DataPtr = std::unique_ptr<T>;
+  struct Node
+  {
+    DataPtr data;
+    std::unique_ptr<Node> next;
+
+    Node() : data(nullptr), next(nullptr) {}
+  };
+  using NodePtr = std::unique_ptr<Node>;
+
+  NodePtr head;
+  Node* tail;
+
+  mutable std::mutex head_mutex;
+  mutable std::mutex tail_mutex;
+
+  std::condition_variable data_cond;
+
+  Node* get_tail() const
+  {
+    std::lock_guard<std::mutex> tail_lock(tail_mutex);
+    return tail;
+  }
+
+  void pop_head()
+  {
+    std::unique_ptr<Node> old_head = std::move(head);
+    head = std::move(old_head->next);
+  }
+
+  std::unique_lock<std::mutex> wait_data(bool& is_empty)
+  {
+    std::unique_lock<std::mutex> head_lock(head_mutex);
+    data_cond.wait(head_lock,
+                   [&]
+                   {
+                     is_empty = head.get() == get_tail();
+                     return !is_empty;
+                   });
+
+    return head_lock;
+  }
+
+  std::unique_lock<std::mutex> wait_for_data(bool& is_empty, std::chrono::milliseconds wait_time)
+  {
+    std::unique_lock<std::mutex> head_lock(head_mutex);
+    data_cond.wait_for(head_lock, wait_time,
+                       [&]
+                       {
+                         is_empty = head.get() == get_tail();
+                         return !is_empty;
+                       });
+
+    return head_lock;
+  }
+};
 }
 #endif//CONCURRENCY_BOX_EXERCISE_INCLUDE_APRICOT_QUEUE_HPP
