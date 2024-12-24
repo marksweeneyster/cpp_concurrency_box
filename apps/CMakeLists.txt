@@ -1,4 +1,5 @@
-add_executable(demo0 demo0.cpp)
+add_executable(demo0 demo0.cpp
+        demo4.cpp)
 target_link_libraries(demo0 PUBLIC apricot)
 
 add_executable(demo1 demo1.cpp)
@@ -9,6 +10,9 @@ target_link_libraries(demo2 PUBLIC apricot)
 
 add_executable(demo3 demo3.cpp)
 target_link_libraries(demo3 PUBLIC apricot)
+
+add_executable(demo4 demo4.cpp)
+target_link_libraries(demo4 PUBLIC apricot)
 
 add_executable(MultiRead MultiRead.cpp)
 target_link_libraries(MultiRead PUBLIC apricot)
@@ -40,6 +44,11 @@ if (${SANITIZE_Q_APPS})
   target_compile_options(demo3_asan PRIVATE -fsanitize=address)
   target_link_options(demo3_asan PRIVATE -fsanitize=address)
 
+  add_executable(demo4_asan demo4.cpp)
+  target_link_libraries(demo4_asan PUBLIC apricot)
+  target_compile_options(demo4_asan PRIVATE -fsanitize=address)
+  target_link_options(demo4_asan PRIVATE -fsanitize=address)
+
   if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin|Linux")
     # thread
     add_executable(demo0_tsan demo0.cpp)
@@ -62,6 +71,11 @@ if (${SANITIZE_Q_APPS})
     target_compile_options(demo3_tsan PRIVATE -fsanitize=thread)
     target_link_options(demo3_tsan PRIVATE -fsanitize=thread)
 
+    add_executable(demo4_tsan demo4.cpp)
+    target_link_libraries(demo4_tsan PUBLIC apricot)
+    target_compile_options(demo4_tsan PRIVATE -fsanitize=thread)
+    target_link_options(demo4_tsan PRIVATE -fsanitize=thread)
+
     # undefined behavior
     add_executable(demo0_usan demo0.cpp)
     target_link_libraries(demo0_usan PUBLIC apricot)
@@ -82,6 +96,11 @@ if (${SANITIZE_Q_APPS})
     target_link_libraries(demo3_usan PUBLIC apricot)
     target_compile_options(demo3_usan PRIVATE -fsanitize=undefined)
     target_link_options(demo3_usan PRIVATE -fsanitize=undefined)
+
+    add_executable(demo4_usan demo4.cpp)
+    target_link_libraries(demo4_usan PUBLIC apricot)
+    target_compile_options(demo4_usan PRIVATE -fsanitize=undefined)
+    target_link_options(demo4_usan PRIVATE -fsanitize=undefined)
   endif ()
 
 endif ()

@@ -583,4 +583,138 @@ namespace apricot {
 
 }// namespace apricot
 
+namespace other {
+  template <typename T>
+class ts_queue_t
+{
+public:
+  void push(T data)
+  {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    data_queue.push(std::move(data));
+    data_cv.notify_one();
+  }
+
+  void push(std::vector<T> data_vec)
+  {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    for (auto& data : data_vec)
+    {
+      data_queue.push(std::move(data));
+    }
+
+    data_cv.notify_one();
+  }
+
+  bool wait_for_pop(T& data, std::chrono::milliseconds wait_time)
+  {
+    std::unique_lock<std::mutex> lk(data_mutex);
+    data_cv.wait_for(lk, wait_time, [this] { return !data_queue.empty(); });
+    if (!data_queue.empty())
+    {
+      data = std::move(data_queue.front());
+      data_queue.pop();
+      return true;
+    }
+    return false;
+  }
+
+  bool wait_pop(T& data)
+  {
+    std::unique_lock<std::mutex> lk(data_mutex);
+    data_cv.wait(lk, [this] { return !data_queue.empty(); });
+    if (!data_queue.empty())
+    {
+      data = std::move(data_queue.front());
+      data_queue.pop();
+      return true;
+    }
+    return false;
+  }
+
+  bool try_pop(T& data)
+  {
+    std::unique_lock<std::mutex> lk(data_mutex);
+    if (!data_queue.empty())
+    {
+      data = std::move(data_queue.front());
+      data_queue.pop();
+      return true;
+    }
+    return false;
+  }
+
+  bool empty() const
+  {
+    std::lock_guard<std::mutex> lk(data_mutex);
+    return data_queue.empty();
+  }
+
+  void clear()
+  {
+    std::lock_guard<std::mutex> lk(data_mutex);
+
+    while (!data_queue.empty())
+    {
+      data_queue.pop();
+    }
+  }
+
+  ts_queue_t() = default;
+  ts_queue_t(const ts_queue_t&) = delete;
+  ts_queue_t& operator=(const ts_queue_t&) = delete;
+
+  ts_queue_t(ts_queue_t&& other) noexcept
+  {
+    std::lock_guard<std::mutex> lk(other.data_mutex);
+    data_queue = std::move(other.data_queue);
+  }
+
+  ts_queue_t& operator=(ts_queue_t&& other) noexcept
+  {
+    if (this != &other)
+    {
+      std::scoped_lock lock(data_mutex, other.data_mutex);
+      while (!data_queue.empty())
+      {
+        data_queue.pop();
+      }
+      data_queue = std::move(other.data_queue);
+    }
+    return *this;
+  }
+
+  ts_queue_t& operator+=(ts_queue_t&& other) noexcept
+  {
+    if (this != &other)
+    {
+      std::scoped_lock lock(data_mutex, other.data_mutex);
+      if (data_queue.empty())
+      {
+        if (!other.data_queue.empty())
+        {
+          data_queue = std::move(other.data_queue);
+        }
+      }
+      else
+      {
+        while (!other.data_queue.empty())
+        {
+          T tmp = std::move(other.data_queue.front());
+          data_queue.push(std::move(tmp));
+          other.data_queue.pop();
+        }
+      }
+    }
+    return *this;
+  }
+
+  ~ts_queue_t() = default;
+
+private:
+  std::queue<T> data_queue;
+  mutable std::mutex data_mutex;
+  std::condition_variable data_cv;
+};
+}
 #endif//CONCURRENCY_BOX_EXERCISE_INCLUDE_APRICOT_QUEUE_HPP
