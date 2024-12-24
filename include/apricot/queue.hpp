@@ -362,8 +362,8 @@ namespace apricot {
     // Returns true if value has been updated
     bool wait_pop_head(T& value) {
       bool is_empty = true;// empty queue
-      std::unique_lock<std::mutex> head_lock(
-              std::move(wait_for_data(is_empty)));
+      std::unique_lock<std::mutex> head_lock(wait_for_data(is_empty));
+
       if (!is_empty) {
         value = std::move(*head->data);
         pop_head();
