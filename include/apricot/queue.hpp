@@ -82,6 +82,18 @@ namespace apricot {
       if (this != &other) {
         data_wait_ms = other.data_wait_ms;
         std::scoped_lock lock(data_mutex, other.data_mutex);
+        while (!data_queue.empty()) {
+          data_queue.pop();
+        }
+        data_queue = std::move(other.data_queue);
+      }
+      return *this;
+    }
+
+    Queue0& operator+=(Queue0&& other) noexcept {
+      if (this != &other) {
+        data_wait_ms = other.data_wait_ms;
+        std::scoped_lock lock(data_mutex, other.data_mutex);
 
         if (data_queue.empty()) {
           data_queue = std::move(other.data_queue);
@@ -95,6 +107,7 @@ namespace apricot {
       }
       return *this;
     }
+
     ~Queue0() = default;
 
   private:

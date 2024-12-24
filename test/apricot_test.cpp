@@ -151,9 +151,6 @@ TEST(Queue0, Move) {
   NoCopy nc1(0);
   NoCopy nc2(0);
   NoCopy nc3(0);
-  NoCopy nc4(0);
-  NoCopy nc5(0);
-  NoCopy nc6(0);
 
   queue0 = std::move(queue1);
 
@@ -162,16 +159,12 @@ TEST(Queue0, Move) {
   queue0.dequeue(nc1);
   queue0.dequeue(nc2);
   queue0.dequeue(nc3);
-  queue0.dequeue(nc4);
-  queue0.dequeue(nc5);
-  queue0.dequeue(nc6);
 
-  EXPECT_EQ(nc1.data, 1);
-  EXPECT_EQ(nc2.data, 2);
-  EXPECT_EQ(nc3.data, 3);
-  EXPECT_EQ(nc4.data, 4);
-  EXPECT_EQ(nc5.data, 5);
-  EXPECT_EQ(nc6.data, 6);
+  EXPECT_TRUE(queue0.empty());
+
+  EXPECT_EQ(nc1.data, 4);
+  EXPECT_EQ(nc2.data, 5);
+  EXPECT_EQ(nc3.data, 6);
 
   queue0.enqueue(NoCopy(7));
   queue0.enqueue(NoCopy(8));
@@ -189,6 +182,44 @@ TEST(Queue0, Move) {
   EXPECT_EQ(nc1.data, 7);
   EXPECT_EQ(nc2.data, 8);
   EXPECT_EQ(nc3.data, 9);
+}
+
+TEST(Queue0, Move2) {
+  apricot::Queue0<NoCopy> queue0(100);
+  apricot::Queue0<NoCopy> queue1(100);
+
+  queue0.enqueue(NoCopy(1));
+  queue0.enqueue(NoCopy(2));
+  queue0.enqueue(NoCopy(3));
+
+  queue1.enqueue(NoCopy(4));
+  queue1.enqueue(NoCopy(5));
+  queue1.enqueue(NoCopy(6));
+
+  NoCopy nc1(0);
+  NoCopy nc2(0);
+  NoCopy nc3(0);
+  NoCopy nc4(0);
+  NoCopy nc5(0);
+  NoCopy nc6(0);
+
+  queue0 += std::move(queue1);
+
+  EXPECT_TRUE(queue1.empty());
+
+  queue0.dequeue(nc1);
+  queue0.dequeue(nc2);
+  queue0.dequeue(nc3);
+  queue0.dequeue(nc4);
+  queue0.dequeue(nc5);
+  queue0.dequeue(nc6);
+
+  EXPECT_EQ(nc1.data, 1);
+  EXPECT_EQ(nc2.data, 2);
+  EXPECT_EQ(nc3.data, 3);
+  EXPECT_EQ(nc4.data, 4);
+  EXPECT_EQ(nc5.data, 5);
+  EXPECT_EQ(nc6.data, 6);
 }
 
 TEST(Queue1, NoCopy) {
