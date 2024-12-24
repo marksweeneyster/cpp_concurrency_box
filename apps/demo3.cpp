@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     consumer.join();
   }
 
-  std::cout << "Queue0 squares\n";
+  std::cout << "Queue3 squares\n";
   std::cout << "==============\n";
   for (const auto& square: squares) {
     std::cout << square << '\n';
