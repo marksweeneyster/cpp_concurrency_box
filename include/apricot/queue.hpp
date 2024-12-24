@@ -472,6 +472,13 @@ namespace apricot {
       return head.get() == get_tail();
     }
 
+    void clear() {
+      std::scoped_lock lock(head_mutex, tail_mutex);
+      while (head.get() != tail) {
+        pop_head();
+      }
+    }
+
     explicit Queue3(int timeout_ms)
         : head(new Node), tail(head.get()), data_wait_ms(timeout_ms) {}
 

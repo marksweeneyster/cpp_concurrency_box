@@ -460,6 +460,18 @@ TEST(Queue3, Vector) {
   EXPECT_EQ(nc4.data, 4);
 }
 
+TEST(Queue3, clear_queue) {
+  apricot::Queue3<NoCopy> queue(1000);
+  int max_val = 100;
+
+  for (int ii = 1; ii <= max_val; ++ii) {
+    queue.push(NoCopy(ii));
+  }
+  EXPECT_FALSE(queue.empty());
+  EXPECT_NO_THROW(queue.clear());
+  EXPECT_TRUE(queue.empty());
+}
+
 TEST(Queue3, thread) {
   apricot::Queue3<NoCopy> queue(1000);
   int max_val = 100;
