@@ -3,7 +3,7 @@
 #include <future>
 #include <iostream>
 
-int main(int argc, char* argv[]) {
+int main() {
   uint16_t num_tasks = 11;
 
   using task_t   = std::packaged_task<int()>;
@@ -35,13 +35,13 @@ int main(int argc, char* argv[]) {
 
   for (int i = 0; i < num_tasks; ++i) {
     if (i == not_random_thread_index) {
-      tasks[i]   = std::move(task_t([i] {
+      tasks[i]   = task_t([i] {
         apricot::interruption_point();
         return i * i;
-      }));
+      });
 
     } else {
-      tasks[i]   = std::move(task_t([i] { return i * i; }));
+      tasks[i]   = task_t([i] { return i * i; });
     }
     results[i] = tasks[i].get_future();
   }

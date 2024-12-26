@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-int main(int argc, char* argv[]) {
+int main() {
   uint16_t num_tasks = 111;
 
   apricot::MultiRead object(42);
