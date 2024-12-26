@@ -1,5 +1,4 @@
-add_executable(demo0 demo0.cpp
-        demo4.cpp)
+add_executable(demo0 demo0.cpp)
 target_link_libraries(demo0 PUBLIC apricot)
 
 add_executable(demo1 demo1.cpp)
