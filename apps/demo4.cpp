@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Queue of tasks that return integers
-  using FT_Queue = other::ts_queue_t<std::future<int>>;
+  using FT_Queue = other::ts_queue2_t<std::future<int>>;
 
   FT_Queue ft_queue;
 

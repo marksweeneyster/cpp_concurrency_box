@@ -5,13 +5,17 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
-#include <optional>
 #include <queue>
-#include <thread>
 #include <utility>
-#include <vector>
 
 namespace apricot {
+
+  template<typename R>
+  concept Iterable = requires(R range) {
+    { range.begin() } -> std::input_iterator;
+    { range.end() } -> std::sentinel_for<decltype(range.begin())>;
+    { range.empty() } -> std::same_as<bool>;
+  };
 
   /*
    * Queue0 uses a single mutex and std::queue for the FIFO
@@ -25,15 +29,58 @@ namespace apricot {
       data_cv.notify_one();
     }
 
-    void enqueue(std::vector<T> data_vec) {
-      std::lock_guard<std::mutex> lk(data_mutex);
+    void enqueue0(auto&& data_range) {
+      using el_type = decltype(*data_range.begin());
+      static_assert(std::is_same_v<T, std::decay_t<el_type>>,
+                    "data_range elements must be "
+                    "<T>");
 
-      for (auto& data: data_vec) {
+      if (data_range.empty()) {
+        return;
+      }
+
+      std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto& data: data_range) {
         data_queue.push(std::move(data));
       }
 
       data_cv.notify_one();
     }
+    // above signature with auto&& implicitly allows L-values
+    void enqueue0(auto& data_range) = delete;
+
+    template<Iterable R>
+      requires requires(R r, T t) { t = std::move(*r.begin()); }
+    void enqueue2(R&& range) {
+      if (range.empty()) {
+        return;
+      }
+
+      std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto& data: range) {
+        data_queue.push(std::move(data));
+      }
+
+      data_cv.notify_one();
+    }
+
+    template<Iterable R>
+      requires requires(R::value_type r, T t) { t = std::move(r); }
+    void enqueue(R&& range) {
+      if (range.empty()) {
+        return;
+      }
+
+      std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto& data: range) {
+        data_queue.push(std::move(data));
+      }
+
+      data_cv.notify_one();
+    }
+    // above enqueue signature with auto&& implicitly allows L-values
+    template<Iterable R>
+    void enqueue(R& data_range) = delete;
 
     /*
      * Thread safe pop. Users should a sentinel value for the input/output and
@@ -584,145 +631,120 @@ namespace apricot {
 }// namespace apricot
 
 namespace other {
-  template <typename T>
-class ts_queue_t
-{
-public:
-  void push(T data)
-  {
-    std::lock_guard<std::mutex> lk(data_mutex);
-    data_queue.push(std::move(data));
-    data_cv.notify_one();
-  }
-
-  void push(std::vector<T> data_vec)
-  {
-    std::lock_guard<std::mutex> lk(data_mutex);
-    for (auto& data : data_vec)
-    {
+  template<typename T>
+  class ts_queue_t {
+  public:
+    void push(T data) {
+      std::lock_guard<std::mutex> lk(data_mutex);
       data_queue.push(std::move(data));
+      data_cv.notify_one();
     }
 
-    data_cv.notify_one();
-  }
+    void push(std::vector<T> data_vec) {
+      std::lock_guard<std::mutex> lk(data_mutex);
+      for (auto& data: data_vec) {
+        data_queue.push(std::move(data));
+      }
 
-  bool wait_for_pop(T& data, std::chrono::milliseconds wait_time)
-  {
-    std::unique_lock<std::mutex> lk(data_mutex);
-    data_cv.wait_for(lk, wait_time, [this] { return !data_queue.empty(); });
-    if (!data_queue.empty())
-    {
-      data = std::move(data_queue.front());
-      data_queue.pop();
-      return true;
+      data_cv.notify_one();
     }
-    return false;
-  }
 
-  bool wait_pop(T& data)
-  {
-    std::unique_lock<std::mutex> lk(data_mutex);
-    data_cv.wait(lk, [this] { return !data_queue.empty(); });
-    if (!data_queue.empty())
-    {
-      data = std::move(data_queue.front());
-      data_queue.pop();
-      return true;
+    bool wait_for_pop(T& data, std::chrono::milliseconds wait_time) {
+      std::unique_lock<std::mutex> lk(data_mutex);
+      data_cv.wait_for(lk, wait_time, [this] { return !data_queue.empty(); });
+      if (!data_queue.empty()) {
+        data = std::move(data_queue.front());
+        data_queue.pop();
+        return true;
+      }
+      return false;
     }
-    return false;
-  }
 
-  bool try_pop(T& data)
-  {
-    std::unique_lock<std::mutex> lk(data_mutex);
-    if (!data_queue.empty())
-    {
-      data = std::move(data_queue.front());
-      data_queue.pop();
-      return true;
+    bool wait_pop(T& data) {
+      std::unique_lock<std::mutex> lk(data_mutex);
+      data_cv.wait(lk, [this] { return !data_queue.empty(); });
+      if (!data_queue.empty()) {
+        data = std::move(data_queue.front());
+        data_queue.pop();
+        return true;
+      }
+      return false;
     }
-    return false;
-  }
 
-  bool empty() const
-  {
-    std::lock_guard<std::mutex> lk(data_mutex);
-    return data_queue.empty();
-  }
-
-  void clear()
-  {
-    std::lock_guard<std::mutex> lk(data_mutex);
-
-    while (!data_queue.empty())
-    {
-      data_queue.pop();
+    bool try_pop(T& data) {
+      std::unique_lock<std::mutex> lk(data_mutex);
+      if (!data_queue.empty()) {
+        data = std::move(data_queue.front());
+        data_queue.pop();
+        return true;
+      }
+      return false;
     }
-  }
 
-  ts_queue_t() = default;
-  ts_queue_t(const ts_queue_t&) = delete;
-  ts_queue_t& operator=(const ts_queue_t&) = delete;
+    bool empty() const {
+      std::lock_guard<std::mutex> lk(data_mutex);
+      return data_queue.empty();
+    }
 
-  ts_queue_t(ts_queue_t&& other) noexcept
-  {
-    std::lock_guard<std::mutex> lk(other.data_mutex);
-    data_queue = std::move(other.data_queue);
-  }
+    void clear() {
+      std::lock_guard<std::mutex> lk(data_mutex);
 
-  ts_queue_t& operator=(ts_queue_t&& other) noexcept
-  {
-    if (this != &other)
-    {
-      std::scoped_lock lock(data_mutex, other.data_mutex);
-      while (!data_queue.empty())
-      {
+      while (!data_queue.empty()) {
         data_queue.pop();
       }
+    }
+
+    ts_queue_t()                             = default;
+    ts_queue_t(const ts_queue_t&)            = delete;
+    ts_queue_t& operator=(const ts_queue_t&) = delete;
+
+    ts_queue_t(ts_queue_t&& other) noexcept {
+      std::lock_guard<std::mutex> lk(other.data_mutex);
       data_queue = std::move(other.data_queue);
     }
-    return *this;
-  }
 
-  ts_queue_t& operator+=(ts_queue_t&& other) noexcept
-  {
-    if (this != &other)
-    {
-      std::scoped_lock lock(data_mutex, other.data_mutex);
-      if (data_queue.empty())
-      {
-        if (!other.data_queue.empty())
-        {
-          data_queue = std::move(other.data_queue);
+    ts_queue_t& operator=(ts_queue_t&& other) noexcept {
+      if (this != &other) {
+        std::scoped_lock lock(data_mutex, other.data_mutex);
+        while (!data_queue.empty()) {
+          data_queue.pop();
         }
+        data_queue = std::move(other.data_queue);
       }
-      else
-      {
-        while (!other.data_queue.empty())
-        {
-          T tmp = std::move(other.data_queue.front());
-          data_queue.push(std::move(tmp));
-          other.data_queue.pop();
-        }
-      }
+      return *this;
     }
-    return *this;
-  }
 
-  ~ts_queue_t() = default;
+    ts_queue_t& operator+=(ts_queue_t&& other) noexcept {
+      if (this != &other) {
+        std::scoped_lock lock(data_mutex, other.data_mutex);
+        if (data_queue.empty()) {
+          if (!other.data_queue.empty()) {
+            data_queue = std::move(other.data_queue);
+          }
+        } else {
+          while (!other.data_queue.empty()) {
+            T tmp = std::move(other.data_queue.front());
+            data_queue.push(std::move(tmp));
+            other.data_queue.pop();
+          }
+        }
+      }
+      return *this;
+    }
 
-private:
-  std::queue<T> data_queue;
-  mutable std::mutex data_mutex;
-  std::condition_variable data_cv;
-};
+    ~ts_queue_t() = default;
+
+  private:
+    std::queue<T> data_queue;
+    mutable std::mutex data_mutex;
+    std::condition_variable data_cv;
+  };
 
 
-template <typename T>
-class ts_queue2_t
-{
-public:
-  /*
+  template<typename T>
+  class ts_queue2_t {
+  public:
+    /*
    * This will return as soon as the head_mutex is free.
    * If the queue is non-empty then the value will be updated and the queue is
    * popped. Otherwise, the value is not modified.
@@ -730,239 +752,221 @@ public:
    * @value : output parameter
    * @return : true if the value was updated from the queue.
    */
-  bool try_pop(T& value)
-  {
-    std::lock_guard<std::mutex> head_lock(head_mutex);
-    if (head.get() == get_tail())
-    {
-      return false;
+    bool try_pop(T& value) {
+      std::lock_guard<std::mutex> head_lock(head_mutex);
+      if (head.get() == get_tail()) {
+        return false;
+      }
+      value = std::move(*head->data);
+      pop_head();
+      return true;
     }
-    value = std::move(*head->data);
-    pop_head();
-    return true;
-  }
 
-  /*
+    /*
    * This will wait until the queue is non-empty
    *
    * @value : output parameter
    * @return : true if the value was updated from the queue.
    */
-  bool wait_pop(T& value)
-  {
-    bool is_empty = true;  // empty queue
+    bool wait_pop(T& value) {
+      bool is_empty = true;// empty queue
 
-    // Using the helper function "wait_for_data" thread-sanitizer (plus asan and usan) give a clean bill of health
+      // Using the helper function "wait_pop" thread-sanitizer (plus asan and usan) give a clean bill of health
 
-    // If I move the body of "wait_for_data" here then thread-sanitizer complains (warns) about:
-    // 1. double lock of a mutex (.build/apps/demo3_tsan+0x9e80) in __gthread_mutex_lock(pthread_mutex_t*)a
-    // 2. data race (.build/apps/demo3_tsan+0x117f5) in std::__uniq_ptr_impl<apricot::ts_queue2_t<std::future<int>
-    // >::Node, std::default_delete<apricot::ts_queue2_t<std::future<int> >::Node> >::_M_ptr() const
-    std::unique_lock<std::mutex> head_lock(wait_data(is_empty));
+      // If I move the body of "wait_data" here then thread-sanitizer complains (warns) about:
+      // 1. double lock of a mutex (.build/apps/demo3_tsan+0x9e80) in __gthread_mutex_lock(pthread_mutex_t*)a
+      // 2. data race (.build/apps/demo3_tsan+0x117f5) in std::__uniq_ptr_impl<apricot::ts_queue2_t<std::future<int>
+      // >::Node, std::default_delete<apricot::ts_queue2_t<std::future<int> >::Node> >::_M_ptr() const
+      std::unique_lock<std::mutex> head_lock(wait_data(is_empty));
 
-    if (!is_empty)
-    {
-      value = std::move(*head->data);
-      pop_head();
-      return true;
+      if (!is_empty) {
+        value = std::move(*head->data);
+        pop_head();
+        return true;
+      }
+
+      return false;
     }
 
-    return false;
-  }
+    bool wait_for_pop(T& value, std::chrono::milliseconds wait_time) {
+      bool is_empty = true;// empty queue
+      std::unique_lock<std::mutex> head_lock(
+              wait_for_data(is_empty, wait_time));
 
-  bool wait_for_pop(T& value, std::chrono::milliseconds wait_time)
-  {
-    bool is_empty = true;  // empty queue
-    std::unique_lock<std::mutex> head_lock(wait_for_data(is_empty, wait_time));
+      if (!is_empty) {
+        value = std::move(*head->data);
+        pop_head();
+        return true;
+      }
 
-    if (!is_empty)
-    {
-      value = std::move(*head->data);
-      pop_head();
-      return true;
+      return false;
     }
 
-    return false;
-  }
-
-  void push(T data)
-  {
-    auto data_ptr = std::make_unique<T>(std::move(data));
-    auto node_ptr = std::make_unique<Node>();
-    const auto new_tail = node_ptr.get();
-    {
-      std::lock_guard<std::mutex> tail_lock(tail_mutex);
-      tail->data = std::move(data_ptr);
-      tail->next = std::move(node_ptr);
-      tail = new_tail;
-    }
-    data_cond.notify_one();
-  }
-
-  /*
-   * Push a vector of values, order will be preserved in the queue.
-   *
-   * @data_vec : input
-   */
-  void push(std::vector<T> data_vec)
-  {
-    {
-      std::lock_guard<std::mutex> tail_lock(tail_mutex);
-      for (auto& data : data_vec)
+    void push(T data) {
+      auto data_ptr       = std::make_unique<T>(std::move(data));
+      auto node_ptr       = std::make_unique<Node>();
+      const auto new_tail = node_ptr.get();
       {
-        auto data_ptr = std::make_unique<T>(std::move(data));
-        auto node_ptr = std::make_unique<Node>();
-        const auto new_tail = node_ptr.get();
+        std::lock_guard<std::mutex> tail_lock(tail_mutex);
         tail->data = std::move(data_ptr);
         tail->next = std::move(node_ptr);
-        tail = new_tail;
+        tail       = new_tail;
       }
+      data_cond.notify_one();
     }
-    data_cond.notify_one();
-  }
 
-  bool empty() const
-  {
-    std::lock_guard<std::mutex> head_lock(head_mutex);
-    return head.get() == get_tail();
-  }
-
-  void clear()
-  {
-    std::scoped_lock lock(head_mutex, tail_mutex);
-    while (head.get() != tail)
-    {
-      pop_head();
-    }
-  }
-
-  ts_queue2_t() : head(new Node), tail(head.get()) {}
-
-  ts_queue2_t(const ts_queue2_t&) = delete;
-  ts_queue2_t& operator=(const ts_queue2_t&) = delete;
-
-  ~ts_queue2_t() = default;
-
-  ts_queue2_t(ts_queue2_t&& other) noexcept
-  {
-    std::scoped_lock lock(other.head_mutex, other.tail_mutex);
-    head = std::move(other.head);
-    tail = other.tail;
-    other.head = std::make_unique<Node>();
-    other.tail = other.head.get();
-  }
-
-  ts_queue2_t& operator=(ts_queue2_t&& other) noexcept
-  {
-    if (this != &other)
-    {
-      std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex, other.tail_mutex);
-      while (head.get() != tail)
+    /*
+     * Push a range of values, order will be preserved in the queue.
+     * For thread safety the caller should std::move the container in the
+     * function call.
+     *
+     * @range : input
+     */
+    template<apricot::Iterable R>
+      requires requires(R::value_type r, T t) { t = std::move(r); }
+    void push(R&& range) {
+      if (range.empty()) {
+        return;
+      }
       {
+        std::lock_guard<std::mutex> tail_lock(tail_mutex);
+        for (auto& data: range) {
+          auto data_ptr       = std::make_unique<T>(std::move(data));
+          auto node_ptr       = std::make_unique<Node>();
+          const auto new_tail = node_ptr.get();
+          tail->data          = std::move(data_ptr);
+          tail->next          = std::move(node_ptr);
+          tail                = new_tail;
+        }
+      }
+      data_cond.notify_one();
+    }
+    // above push signature with auto&& implicitly allows L-values
+    template<apricot::Iterable R>
+    void push(R& data_range) = delete;
+
+    bool empty() const {
+      std::lock_guard<std::mutex> head_lock(head_mutex);
+      return head.get() == get_tail();
+    }
+
+    void clear() {
+      std::scoped_lock lock(head_mutex, tail_mutex);
+      while (head.get() != tail) {
         pop_head();
       }
-      head = std::move(other.head);
-      tail = other.tail;
+    }
+
+    ts_queue2_t() : head(new Node), tail(head.get()) {}
+
+    ts_queue2_t(const ts_queue2_t&)            = delete;
+    ts_queue2_t& operator=(const ts_queue2_t&) = delete;
+
+    ~ts_queue2_t() = default;
+
+    ts_queue2_t(ts_queue2_t&& other) noexcept {
+      std::scoped_lock lock(other.head_mutex, other.tail_mutex);
+      head       = std::move(other.head);
+      tail       = other.tail;
       other.head = std::make_unique<Node>();
       other.tail = other.head.get();
     }
-    return *this;
-  }
 
-  ts_queue2_t& operator+=(ts_queue2_t&& other) noexcept
-  {
-    if (this != &other)
-    {
-      std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex, other.tail_mutex);
-
-      bool other_empty = other.head.get() == other.tail;
-      bool this_empty = head.get() == tail;
-
-      if (!other_empty)
-      {
-        if (this_empty)
-        {
-          head = std::move(other.head);
-          tail = other.tail;
+    ts_queue2_t& operator=(ts_queue2_t&& other) noexcept {
+      if (this != &other) {
+        std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex,
+                              other.tail_mutex);
+        while (head.get() != tail) {
+          pop_head();
         }
-        else
-        {
-          while (other.head.get() != other.tail)
-          {
-            auto data_ptr = std::make_unique<T>(std::move(*other.head->data));
-            other.pop_head();
-
-            auto node_ptr = std::make_unique<Node>();
-            const auto new_tail = node_ptr.get();
-
-            tail->data = std::move(data_ptr);
-            tail->next = std::move(node_ptr);
-            tail = new_tail;
-          }
-        }
+        head       = std::move(other.head);
+        tail       = other.tail;
         other.head = std::make_unique<Node>();
         other.tail = other.head.get();
       }
+      return *this;
     }
-    return *this;
-  }
 
-private:
-  using DataPtr = std::unique_ptr<T>;
-  struct Node
-  {
-    DataPtr data;
-    std::unique_ptr<Node> next;
+    ts_queue2_t& operator+=(ts_queue2_t&& other) noexcept {
+      if (this != &other) {
+        std::scoped_lock lock(head_mutex, tail_mutex, other.head_mutex,
+                              other.tail_mutex);
 
-    Node() : data(nullptr), next(nullptr) {}
+        bool other_empty = other.head.get() == other.tail;
+        bool this_empty  = head.get() == tail;
+
+        if (!other_empty) {
+          if (this_empty) {
+            head = std::move(other.head);
+            tail = other.tail;
+          } else {
+            while (other.head.get() != other.tail) {
+              auto data_ptr = std::make_unique<T>(std::move(*other.head->data));
+              other.pop_head();
+
+              auto node_ptr       = std::make_unique<Node>();
+              const auto new_tail = node_ptr.get();
+
+              tail->data = std::move(data_ptr);
+              tail->next = std::move(node_ptr);
+              tail       = new_tail;
+            }
+          }
+          other.head = std::make_unique<Node>();
+          other.tail = other.head.get();
+        }
+      }
+      return *this;
+    }
+
+  private:
+    using DataPtr = std::unique_ptr<T>;
+    struct Node {
+      DataPtr data;
+      std::unique_ptr<Node> next;
+
+      Node() : data(nullptr), next(nullptr) {}
+    };
+    using NodePtr = std::unique_ptr<Node>;
+
+    NodePtr head;
+    Node* tail;
+
+    mutable std::mutex head_mutex;
+    mutable std::mutex tail_mutex;
+
+    std::condition_variable data_cond;
+
+    Node* get_tail() const {
+      std::lock_guard<std::mutex> tail_lock(tail_mutex);
+      return tail;
+    }
+
+    void pop_head() {
+      std::unique_ptr<Node> old_head = std::move(head);
+      head                           = std::move(old_head->next);
+    }
+
+    std::unique_lock<std::mutex> wait_data(bool& is_empty) {
+      std::unique_lock<std::mutex> head_lock(head_mutex);
+      data_cond.wait(head_lock, [&] {
+        is_empty = head.get() == get_tail();
+        return !is_empty;
+      });
+
+      return head_lock;
+    }
+
+    std::unique_lock<std::mutex>
+    wait_for_data(bool& is_empty, std::chrono::milliseconds wait_time) {
+      std::unique_lock<std::mutex> head_lock(head_mutex);
+      data_cond.wait_for(head_lock, wait_time, [&] {
+        is_empty = head.get() == get_tail();
+        return !is_empty;
+      });
+
+      return head_lock;
+    }
   };
-  using NodePtr = std::unique_ptr<Node>;
-
-  NodePtr head;
-  Node* tail;
-
-  mutable std::mutex head_mutex;
-  mutable std::mutex tail_mutex;
-
-  std::condition_variable data_cond;
-
-  Node* get_tail() const
-  {
-    std::lock_guard<std::mutex> tail_lock(tail_mutex);
-    return tail;
-  }
-
-  void pop_head()
-  {
-    std::unique_ptr<Node> old_head = std::move(head);
-    head = std::move(old_head->next);
-  }
-
-  std::unique_lock<std::mutex> wait_data(bool& is_empty)
-  {
-    std::unique_lock<std::mutex> head_lock(head_mutex);
-    data_cond.wait(head_lock,
-                   [&]
-                   {
-                     is_empty = head.get() == get_tail();
-                     return !is_empty;
-                   });
-
-    return head_lock;
-  }
-
-  std::unique_lock<std::mutex> wait_for_data(bool& is_empty, std::chrono::milliseconds wait_time)
-  {
-    std::unique_lock<std::mutex> head_lock(head_mutex);
-    data_cond.wait_for(head_lock, wait_time,
-                       [&]
-                       {
-                         is_empty = head.get() == get_tail();
-                         return !is_empty;
-                       });
-
-    return head_lock;
-  }
-};
-}
+}// namespace other
 #endif//CONCURRENCY_BOX_EXERCISE_INCLUDE_APRICOT_QUEUE_HPP
