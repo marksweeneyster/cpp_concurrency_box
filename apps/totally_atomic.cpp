@@ -1,16 +1,37 @@
 #include "atomics/lock_free_stack.h"
 
+#include <random>
+#include <thread>
+
 int main() {
+  std::mt19937 rng(std::random_device{}());
+  std::uniform_int_distribution<int> dist(1, 1000);
+
   totally_atomic::lock_free_stack<int> lock_free_stack;
-  lock_free_stack.push(49);
-  lock_free_stack.push(48);
-  lock_free_stack.push(47);
-  lock_free_stack.push(46);
-  lock_free_stack.push(45);
-  lock_free_stack.push(42);
+
+  for (int ii = 0; ii < 100; ++ii) {
+    std::thread t([&]() {
+      for (int jj = 0; jj < 10'000; ++jj) {
+        lock_free_stack.push(dist(rng));
+      }
+    });
+    t.detach();
+  }
+
   auto val = lock_free_stack.pop();
 
-  while (lock_free_stack.pop()) {}
+  unsigned int sz = 100;
+  std::vector<std::thread> tvec;
+  tvec.reserve(sz);
+  for (auto ii = 0U; ii < sz; ++ii) {
+    tvec.emplace_back([&lock_free_stack]() {
+      while (lock_free_stack.pop()) {}
+    });
+  }
+
+  for (auto& popper: tvec) {
+    popper.join();
+  }
 
   return val ? *val : -1;
 }
