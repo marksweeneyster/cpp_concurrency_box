@@ -21,18 +21,24 @@ namespace totally_atomic {
     std::atomic<node*> head{nullptr};
 
   public:
+
     void push(T const& data) {
       auto new_node = new node(data);
       new_node->next = head.load();
       while (!head.compare_exchange_weak(new_node->next, new_node)) {}
     }
+
     std::shared_ptr<T> pop() {
       ++threads_in_pop;
+
       node* old_head = head.load();
+
       while (old_head && !head.compare_exchange_weak(old_head, old_head->next) ) {}
 
       std::shared_ptr<T> res;
-      if (old_head) {res.swap(old_head->data); }
+      if (old_head) {
+        res.swap(old_head->data); 
+      }
 
       try_reclaim(old_head);
       return res;
@@ -70,6 +76,7 @@ namespace totally_atomic {
       while (node* const next = last->next) {
         last = next;
       }
+      chain_pending_nodes(nodes, last);
     }
 
     void chain_pending_nodes(node* first, node* last) {
