@@ -19,6 +19,14 @@ target_link_libraries(MultiRead PUBLIC apricot)
 add_executable(tdemo0 tdemo0.cpp)
 target_link_libraries(tdemo0 PUBLIC apricot)
 
+add_executable(totally_atomic totally_atomic.cpp)
+target_link_libraries(totally_atomic PUBLIC apricot)
+
+add_executable(totally_atomic_asan totally_atomic.cpp)
+target_link_libraries(totally_atomic_asan PUBLIC apricot)
+target_compile_options(totally_atomic_asan PRIVATE -fsanitize=address)
+target_link_options(totally_atomic_asan PRIVATE -fsanitize=address)
+
 add_executable(thread_local_app thread_local_app.cpp)
 
 if (${SANITIZE_Q_APPS})

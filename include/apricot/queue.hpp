@@ -823,7 +823,7 @@ namespace other {
      * @range : input
      */
     template<apricot::Iterable R>
-      requires requires(R::value_type r, T t) { t = std::move(r); }
+      requires requires(typename R::value_type r, T t) { t = std::move(r); }
     void push(R&& range) {
       if (range.empty()) {
         return;
