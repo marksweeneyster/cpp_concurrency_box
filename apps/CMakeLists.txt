@@ -22,10 +22,6 @@ target_link_libraries(tdemo0 PUBLIC apricot)
 add_executable(totally_atomic totally_atomic.cpp)
 target_link_libraries(totally_atomic PUBLIC apricot)
 
-add_executable(totally_atomic_asan totally_atomic.cpp)
-target_link_libraries(totally_atomic_asan PUBLIC apricot)
-target_compile_options(totally_atomic_asan PRIVATE -fsanitize=address)
-target_link_options(totally_atomic_asan PRIVATE -fsanitize=address)
 
 add_executable(thread_local_app thread_local_app.cpp)
 
@@ -56,6 +52,11 @@ if (${SANITIZE_Q_APPS})
   target_compile_options(demo4_asan PRIVATE -fsanitize=address)
   target_link_options(demo4_asan PRIVATE -fsanitize=address)
 
+  add_executable(totally_atomic_asan totally_atomic.cpp)
+  target_link_libraries(totally_atomic_asan PUBLIC apricot)
+  target_compile_options(totally_atomic_asan PRIVATE -fsanitize=address)
+  target_link_options(totally_atomic_asan PRIVATE -fsanitize=address)
+
   if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin|Linux")
     # thread
     add_executable(demo0_tsan demo0.cpp)
@@ -83,6 +84,11 @@ if (${SANITIZE_Q_APPS})
     target_compile_options(demo4_tsan PRIVATE -fsanitize=thread)
     target_link_options(demo4_tsan PRIVATE -fsanitize=thread)
 
+    add_executable(totally_atomic_tsan totally_atomic.cpp)
+    target_link_libraries(totally_atomic_tsan PUBLIC apricot)
+    target_compile_options(totally_atomic_tsan PRIVATE -fsanitize=thread)
+    target_link_options(totally_atomic_tsan PRIVATE -fsanitize=thread)
+
     # undefined behavior
     add_executable(demo0_usan demo0.cpp)
     target_link_libraries(demo0_usan PUBLIC apricot)
@@ -108,6 +114,11 @@ if (${SANITIZE_Q_APPS})
     target_link_libraries(demo4_usan PUBLIC apricot)
     target_compile_options(demo4_usan PRIVATE -fsanitize=undefined)
     target_link_options(demo4_usan PRIVATE -fsanitize=undefined)
+
+    add_executable(totally_atomic_usan totally_atomic.cpp)
+    target_link_libraries(totally_atomic_usan PUBLIC apricot)
+    target_compile_options(totally_atomic_usan PRIVATE -fsanitize=undefined)
+    target_link_options(totally_atomic_usan PRIVATE -fsanitize=undefined)
   endif ()
 
 endif ()

@@ -1,5 +1,7 @@
 #include "apricot/queue.hpp"
 #include <gtest/gtest.h>
+#include <span>
+#include <list>
 
 struct NoCopy {
   int data;
@@ -693,6 +695,24 @@ TEST(ts_queue2, BulkPush) {
   EXPECT_EQ(nc2.data, 2);
   EXPECT_EQ(nc3.data, 3);
   EXPECT_EQ(nc4.data, 4);
+  
+  std::list<NoCopy> lst;
+  lst.emplace_back(5);
+  lst.emplace_back(6);
+  lst.emplace_back(7);
+  lst.emplace_back(8);
+
+  queue.push(std::move(lst));
+
+  queue.try_pop(nc1);
+  queue.try_pop(nc2);
+  queue.try_pop(nc3);
+  queue.try_pop(nc4);
+
+  EXPECT_EQ(nc1.data, 5);
+  EXPECT_EQ(nc2.data, 6);
+  EXPECT_EQ(nc3.data, 7);
+  EXPECT_EQ(nc4.data, 8);
 }
 
 TEST(ts_queue2, clear_queue) {
