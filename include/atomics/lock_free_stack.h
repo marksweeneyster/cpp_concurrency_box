@@ -21,23 +21,27 @@ namespace totally_atomic {
     std::atomic<node*> head{nullptr};
 
   public:
-
     void push(T const& data) {
-      auto new_node = new node(data);
-      new_node->next = head.load();
-      while (!head.compare_exchange_weak(new_node->next, new_node)) {}
+      auto new_node  = new node(data);
+      new_node->next = head.load(std::memory_order_relaxed);
+      while (!head.compare_exchange_weak(new_node->next, new_node,
+                                         std::memory_order_release,
+                                         std::memory_order_relaxed)) {}
     }
 
     std::shared_ptr<T> pop() {
       ++threads_in_pop;
 
-      node* old_head = head.load();
+      node* old_head = head.load(std::memory_order_relaxed);
 
-      while (old_head && !head.compare_exchange_weak(old_head, old_head->next) ) {}
+      while (old_head &&
+             !head.compare_exchange_weak(old_head, old_head->next,
+                                         std::memory_order_release,
+                                         std::memory_order_relaxed)) {}
 
       std::shared_ptr<T> res;
       if (old_head) {
-        res.swap(old_head->data); 
+        res.swap(old_head->data);
       }
 
       try_reclaim(old_head);
@@ -83,11 +87,67 @@ namespace totally_atomic {
       if (!last) return;
 
       last->next = to_be_deleted;
-      while (!to_be_deleted.compare_exchange_weak( last->next, first)) {}
+      while (!to_be_deleted.compare_exchange_weak(last->next, first)) {}
     }
 
-    void chain_pending_node(node* n) {
-      chain_pending_nodes(n, n);
+    void chain_pending_node(node* n) { chain_pending_nodes(n, n); }
+  };
+
+  // A simple lock-free stack
+  template<typename T>
+  class LockFreeStack {
+  private:
+    struct Node {
+      T data;
+      Node* next;
+
+      Node(T value) : data(value), next(nullptr) {}
+    };
+
+    std::atomic<Node*> head;
+
+  public:
+    LockFreeStack() : head(nullptr) {}
+
+    ~LockFreeStack() {
+      while (Node* node = head.load(std::memory_order_relaxed)) {
+        head.store(node->next, std::memory_order_relaxed);
+        delete node;
+      }
+    }
+
+    void push(T value) {
+      Node* newNode = new Node(value);
+      newNode->next = head.load(std::memory_order_relaxed);
+
+      // Use compare_exchange_weak in a loop to atomically update the head
+      while (!head.compare_exchange_weak(newNode->next, newNode,
+                                         std::memory_order_release,
+                                         std::memory_order_relaxed)) {
+        // retry
+      }
+    }
+
+    bool pop(T& result) {
+      Node* top = head.load(std::memory_order_relaxed);
+
+      // Use compare_exchange_weak to atomically remove the head
+      while (top && !head.compare_exchange_weak(top, top->next,
+                                                std::memory_order_acquire,
+                                                std::memory_order_relaxed)) {
+        // retry
+      }
+
+      if (top) {
+        result = top->data;
+        delete top;
+        return true;
+      }
+      return false;// stack was empty
+    }
+
+    bool isEmpty() const {
+      return head.load(std::memory_order_relaxed) == nullptr;
     }
   };
 
