@@ -4,6 +4,8 @@
 .idea/
 out/
 
+.clangd
+
 cmake-build*/
 
 # CMake
