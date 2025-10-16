@@ -21,12 +21,30 @@ namespace totally_atomic {
     std::atomic<node*> head{nullptr};
 
   public:
+    lock_free_stack() = default;
+    ~lock_free_stack() { lock_free_stack::delete_nodes(head); }
+
+    lock_free_stack(lock_free_stack const&) = delete;
+    lock_free_stack(lock_free_stack &&) = delete;
+
+    lock_free_stack& operator=(lock_free_stack const&) = delete;
+    lock_free_stack& operator=(lock_free_stack &&) = delete;
+
+    static constexpr auto node_size() {return sizeof(node);}
+
     void push(T const& data) {
       auto new_node  = new node(data);
+      // put the current value of head into new_node->next
       new_node->next = head.load(std::memory_order_relaxed);
+
+      // now make new_node the new head, but if the head
+      // is no longer what's stored in new_node->next
+      // (some other thread must have inserted a node just now)
+      // then put that new head into new_node->next and try again
       while (!head.compare_exchange_weak(new_node->next, new_node,
                                          std::memory_order_release,
                                          std::memory_order_relaxed)) {}
+
     }
 
     std::shared_ptr<T> pop() {

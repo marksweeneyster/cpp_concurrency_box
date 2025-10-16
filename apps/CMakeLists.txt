@@ -22,6 +22,7 @@ target_link_libraries(tdemo0 PUBLIC apricot)
 add_executable(totally_atomic totally_atomic.cpp)
 target_link_libraries(totally_atomic PUBLIC apricot)
 
+add_executable(jthread_fu jthread_fu.cpp)
 
 add_executable(thread_local_app thread_local_app.cpp)
 

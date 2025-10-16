@@ -1,43 +1,53 @@
 #include "atomics/lock_free_stack.h"
 
+#include <iostream>
 #include <random>
 #include <thread>
 
+void worker_fn(totally_atomic::lock_free_stack<int>& lock_free_stack) {
+  thread_local std::mt19937 rng(std::random_device{}());
+  std::uniform_int_distribution<int> dist(500, 10000);
+
+  for (int jj = 0; jj < 10; ++jj) {
+    lock_free_stack.push(dist(rng));
+  }
+}
+
 int main() {
-  std::mt19937 rng(std::random_device{}());
-  std::uniform_int_distribution<int> dist(1, 1000);
+  {
+    std::cout << "Node size: " << totally_atomic::lock_free_stack<int>::node_size() << "\n";
+    //thread_local std::mt19937 rng(std::random_device{}());
+    //std::uniform_int_distribution<int> dist(500, 10000);
 
-  totally_atomic::lock_free_stack<int> lock_free_stack;
-  //totally_atomic::LockFreeStack<int> lock_free_stack;
+    totally_atomic::lock_free_stack<int> lock_free_stack;
 
-  for (int ii = 0; ii < 100; ++ii) {
-    std::thread t([&]() {
-      for (int jj = 0; jj < 10'000; ++jj) {
-        lock_free_stack.push(dist(rng));
-      }
-    });
-    t.detach();
+    constexpr auto sz = 10U;
+    std::vector<std::thread> pushers;
+    pushers.reserve(sz);
+
+    for (auto ii = 0U; ii < sz; ++ii) {
+      pushers.emplace_back([&]() { worker_fn(lock_free_stack); });
+    }
+
+    for (auto& pusher: pushers) {
+      pusher.join();
+    }
+
+    auto val = lock_free_stack.pop();
+
+    std::vector<std::thread> poppers;
+    poppers.reserve(sz);
+    for (auto ii = 0U; ii < sz; ++ii) {
+      poppers.emplace_back([&lock_free_stack]() {
+        while (lock_free_stack.pop()) {}
+      });
+    }
+
+    for (auto& popper: poppers) {
+      popper.join();
+    }
+
+    std::cout << "sptr value: " << (val ? *val : -1) << "\n";
   }
-
-  //int val = -1;
-  //lock_free_stack.pop(val);
-  auto val = lock_free_stack.pop();
-
-  unsigned int sz = 100;
-  std::vector<std::thread> tvec;
-  tvec.reserve(sz);
-  for (auto ii = 0U; ii < sz; ++ii) {
-    tvec.emplace_back([&lock_free_stack]() {
-      while (lock_free_stack.pop()) {}
-      //int valz = -1;
-      //while (lock_free_stack.pop(valz)) {}
-    });
-  }
-
-  for (auto& popper: tvec) {
-    popper.join();
-  }
-
-  return val ? *val : -1;
-  //return val;
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
