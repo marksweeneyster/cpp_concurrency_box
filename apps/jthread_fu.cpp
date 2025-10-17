@@ -42,7 +42,7 @@ int main() {
   print("Requesting stop of sleepy worker\n");
   sleepy_worker.request_stop();
   sleepy_worker.join();
-  print("Sleepy worker joined\n");
+  print("Sleepy worker joined\n"); // main exits right after this prints
 
   // Or automatically using RAII:
   // waiting_worker's destructor will call request_stop()
