@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
   using task_t   = std::packaged_task<int()>;
   using future_t = std::future<int>;
 
-  apricot::Queue1<task_t> task_queue;
+  apricot::queue1_t<task_t> task_queue;
 
   // setup several consumer threads waiting for enqueued elements
   std::vector<std::thread> consumers(num_tasks);

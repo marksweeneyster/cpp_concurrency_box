@@ -15,7 +15,7 @@ struct NoCopy {
 };
 
 TEST(Queue0, BasicQueue) {
-  apricot::Queue0<int> i_queue(100);
+  apricot::queue0_t<int> i_queue(100);
 
   EXPECT_TRUE(i_queue.empty());
 
@@ -40,7 +40,7 @@ TEST(Queue0, BasicQueue) {
 }
 
 TEST(Queue1, BasicQueue) {
-  apricot::Queue1<int> i_queue;
+  apricot::queue1_t<int> i_queue;
 
   EXPECT_TRUE(i_queue.empty());
 
@@ -65,7 +65,7 @@ TEST(Queue1, BasicQueue) {
 }
 
 TEST(Queue0, NoCopy) {
-  apricot::Queue0<NoCopy> nc_queue(100);
+  apricot::queue0_t<NoCopy> nc_queue(100);
 
   nc_queue.enqueue(NoCopy(1));
   nc_queue.enqueue(NoCopy(2));
@@ -91,7 +91,7 @@ TEST(Queue0, BulkPush) {
   vec.emplace_back(3);
   vec.emplace_back(4);
 
-  apricot::Queue0<NoCopy> queue(100);
+  apricot::queue0_t<NoCopy> queue(100);
 
   // This should fail to compile
   //queue.enqueue(vec);
@@ -138,7 +138,7 @@ TEST(Queue0, BulkPush) {
 }
 
 TEST(Queue0, thread) {
-  apricot::Queue0<NoCopy> queue(1000);
+  apricot::queue0_t<NoCopy> queue(1000);
   int max_val = 100;
 
   std::thread listener([&queue, max_val]() {
@@ -170,8 +170,8 @@ TEST(Queue0, thread) {
 }
 
 TEST(Queue0, Move) {
-  apricot::Queue0<NoCopy> queue0(100);
-  apricot::Queue0<NoCopy> queue1(100);
+  apricot::queue0_t<NoCopy> queue0(100);
+  apricot::queue0_t<NoCopy> queue1(100);
 
   queue0.enqueue(NoCopy(1));
   queue0.enqueue(NoCopy(2));
@@ -203,7 +203,7 @@ TEST(Queue0, Move) {
   queue0.enqueue(NoCopy(8));
   queue0.enqueue(NoCopy(9));
 
-  apricot::Queue0<NoCopy> queue2(std::move(queue0));
+  apricot::queue0_t<NoCopy> queue2(std::move(queue0));
 
   EXPECT_TRUE(queue0.empty());
   EXPECT_FALSE(queue2.empty());
@@ -218,8 +218,8 @@ TEST(Queue0, Move) {
 }
 
 TEST(Queue0, Move2) {
-  apricot::Queue0<NoCopy> queue0(100);
-  apricot::Queue0<NoCopy> queue1(100);
+  apricot::queue0_t<NoCopy> queue0(100);
+  apricot::queue0_t<NoCopy> queue1(100);
 
   queue0.enqueue(NoCopy(1));
   queue0.enqueue(NoCopy(2));
@@ -256,7 +256,7 @@ TEST(Queue0, Move2) {
 }
 
 TEST(Queue1, NoCopy) {
-  apricot::Queue1<NoCopy> nc_queue;
+  apricot::queue1_t<NoCopy> nc_queue;
 
   nc_queue.enqueue(NoCopy(1));
   nc_queue.enqueue(NoCopy(2));
@@ -276,7 +276,7 @@ TEST(Queue1, NoCopy) {
 }
 
 TEST(Queue1, Abort) {
-  apricot::Queue1<double> d_queue;
+  apricot::queue1_t<double> d_queue;
 
   // add a blocked consumer
   std::thread consumer([&d_queue] {
@@ -291,7 +291,7 @@ TEST(Queue1, Abort) {
 }
 
 TEST(Queue2, WaitAndPop) {
-  apricot::Queue2<NoCopy> nc_queue(100);
+  apricot::queue2_t<NoCopy> nc_queue(100);
 
   nc_queue.push(NoCopy(1));
   nc_queue.push(NoCopy(2));
@@ -316,7 +316,7 @@ TEST(Queue2, WaitAndPop) {
 }
 
 TEST(Queue2, TryPop) {
-  apricot::Queue2<NoCopy> nc_queue(0);
+  apricot::queue2_t<NoCopy> nc_queue(0);
 
   nc_queue.push(NoCopy(1));
   nc_queue.push(NoCopy(2));
@@ -348,7 +348,7 @@ TEST(Queue2, Vector) {
   vec.emplace_back(3);
   vec.emplace_back(4);
 
-  apricot::Queue2<NoCopy> queue(100);
+  apricot::queue2_t<NoCopy> queue(100);
 
   queue.push(std::move(vec));
 
@@ -369,7 +369,7 @@ TEST(Queue2, Vector) {
 }
 
 TEST(Queue2, thread) {
-  apricot::Queue2<NoCopy> queue(1000);
+  apricot::queue2_t<NoCopy> queue(1000);
   int max_val = 100;
 
   std::thread listener([&queue, max_val]() {
@@ -394,8 +394,8 @@ TEST(Queue2, thread) {
 }
 
 TEST(Queue2, Move) {
-  apricot::Queue2<NoCopy> queue0(100);
-  apricot::Queue2<NoCopy> queue1(100);
+  apricot::queue2_t<NoCopy> queue0(100);
+  apricot::queue2_t<NoCopy> queue1(100);
 
   queue0.push(NoCopy(1));
   queue0.push(NoCopy(2));
@@ -434,7 +434,7 @@ TEST(Queue2, Move) {
   queue0.push(NoCopy(8));
   queue0.push(NoCopy(9));
 
-  apricot::Queue2<NoCopy> queue2(std::move(queue0));
+  apricot::queue2_t<NoCopy> queue2(std::move(queue0));
 
   EXPECT_TRUE(queue0.empty());
   EXPECT_FALSE(queue2.empty());
@@ -449,7 +449,7 @@ TEST(Queue2, Move) {
 }
 
 TEST(Queue3, WaitAndPop) {
-  apricot::Queue3<NoCopy> nc_queue(100);
+  apricot::queue3_t<NoCopy> nc_queue(100);
 
   nc_queue.push(NoCopy(1));
   nc_queue.push(NoCopy(2));
@@ -474,7 +474,7 @@ TEST(Queue3, WaitAndPop) {
 }
 
 TEST(Queue3, TryPop) {
-  apricot::Queue3<NoCopy> nc_queue(0);
+  apricot::queue3_t<NoCopy> nc_queue(0);
 
   nc_queue.push(NoCopy(1));
   nc_queue.push(NoCopy(2));
@@ -505,7 +505,7 @@ TEST(Queue3, Vector) {
   vec.emplace_back(3);
   vec.emplace_back(4);
 
-  apricot::Queue3<NoCopy> queue(100);
+  apricot::queue3_t<NoCopy> queue(100);
 
   queue.push(std::move(vec));
 
@@ -526,7 +526,7 @@ TEST(Queue3, Vector) {
 }
 
 TEST(Queue3, clear_queue) {
-  apricot::Queue3<NoCopy> queue(1000);
+  apricot::queue3_t<NoCopy> queue(1000);
   int max_val = 100;
 
   for (int ii = 1; ii <= max_val; ++ii) {
@@ -538,7 +538,7 @@ TEST(Queue3, clear_queue) {
 }
 
 TEST(Queue3, thread) {
-  apricot::Queue3<NoCopy> queue(1000);
+  apricot::queue3_t<NoCopy> queue(1000);
   int max_val = 100;
 
   std::thread listener([&queue, max_val]() {
@@ -563,8 +563,8 @@ TEST(Queue3, thread) {
 }
 
 TEST(Queue3, Move) {
-  apricot::Queue3<NoCopy> queue0(100);
-  apricot::Queue3<NoCopy> queue1(100);
+  apricot::queue3_t<NoCopy> queue0(100);
+  apricot::queue3_t<NoCopy> queue1(100);
 
   queue0.push(NoCopy(1));
   queue0.push(NoCopy(2));
@@ -603,7 +603,7 @@ TEST(Queue3, Move) {
   queue0.push(NoCopy(8));
   queue0.push(NoCopy(9));
 
-  apricot::Queue3<NoCopy> queue2(std::move(queue0));
+  apricot::queue3_t<NoCopy> queue2(std::move(queue0));
 
   EXPECT_TRUE(queue0.empty());
   EXPECT_FALSE(queue2.empty());

@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Queue of tasks that return integers
-  using FT_Queue = apricot::Queue0<std::future<int>>;
+  using FT_Queue = apricot::queue0_t<std::future<int>>;
 
   FT_Queue ft_queue(1000);
 
@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
   size_t indx = 0;
   for (auto& consumer: consumers) {
     int& rtn_val = squares[indx++];
-    consumer = std::thread([&ft_queue, &rtn_val]{
+    consumer     = std::thread([&ft_queue, &rtn_val] {
       std::future<int> fut;
       ft_queue.dequeue(fut);
       rtn_val = fut.get();

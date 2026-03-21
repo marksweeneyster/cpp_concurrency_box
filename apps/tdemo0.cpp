@@ -9,7 +9,7 @@ int main() {
   using task_t   = std::packaged_task<int()>;
   using future_t = std::future<int>;
 
-  apricot::Queue1<task_t> task_queue;
+  apricot::queue1_t<task_t> task_queue;
 
   std::vector<task_t> tasks(num_tasks);
   std::vector<future_t> results(num_tasks);
@@ -20,7 +20,6 @@ int main() {
 
   for (int i = 0; i < num_tasks; ++i) {
     consumers.emplace_back([&task_queue] {
-
       auto task_opt = task_queue.dequeue();
       if (task_opt) {
         auto& task = task_opt.value();
@@ -35,13 +34,13 @@ int main() {
 
   for (int i = 0; i < num_tasks; ++i) {
     if (i == not_random_thread_index) {
-      tasks[i]   = task_t([i] {
+      tasks[i] = task_t([i] {
         apricot::interruption_point();
         return i * i;
       });
 
     } else {
-      tasks[i]   = task_t([i] { return i * i; });
+      tasks[i] = task_t([i] { return i * i; });
     }
     results[i] = tasks[i].get_future();
   }
